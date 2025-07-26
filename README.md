@@ -2,13 +2,10 @@
 
 Discord bot to compile typst to PNG.
 
-## Usage
-
->NOTE: Message content intent is required for the bot to function.
-
 ## Requirements
 
-typst installed and avaliable in PATH.
+* Message content intent is required for the bot to function.
+* typst installed and avaliable in PATH.
 
 ## Usage
 
