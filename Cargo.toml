@@ -1,0 +1,17 @@
+[package]
+name = "typit"
+version = "0.1.0"
+authors = ["megatank58"]
+edition = "2024"
+description = "Discord bot to compile typst to PNG."
+repository = "https://github.com/megatank58/typit"
+license = "MIT License"
+
+[dependencies]
+anyhow = "1"
+dotenv = "0.15"
+serenity = "0.12"
+
+[dependencies.tokio]
+version = "1"
+features = ["macros", "rt-multi-thread"]
