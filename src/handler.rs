@@ -1,4 +1,7 @@
-use serenity::all::{Context, CreateAttachment, CreateMessage, EventHandler, Message, Ready};
+use serenity::all::{
+	ButtonStyle, Context, CreateActionRow, CreateAttachment, CreateButton, CreateMessage, EventHandler, Interaction,
+	Message, Ready,
+};
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::thread;
@@ -7,12 +10,38 @@ pub struct Handler;
 
 #[serenity::async_trait]
 impl EventHandler for Handler {
+	async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+		let button_interacton = interaction.message_component().unwrap();
+
+		button_interacton.message.delete(&ctx).await.unwrap();
+	}
+
 	async fn message(&self, ctx: Context, message: Message) {
 		if message.author.bot {
 			return;
 		}
 
-		if message.content.chars().filter(|c| *c == '$').count() > 1 || message.content.starts_with(",typ") {
+		let mut is_math_equation = false;
+		let mut is_math_equation_open = false;
+		let mut last_char = None;
+
+		for char in message.content.chars() {
+			if char == '$' && is_math_equation_open {
+				match last_char {
+					Some(' ') => {}
+					Some(..) => is_math_equation = true,
+					None => unreachable!(),
+				}
+			}
+
+			if last_char == Some('$') && char != ' ' {
+				is_math_equation_open = true
+			}
+
+			last_char = Some(char);
+		}
+
+		if is_math_equation || message.content.starts_with(",typ") {
 			let mut cmd = Command::new("typst")
 				.args(["compile", "-", "-", "--format", "png"])
 				.stdin(Stdio::piped())
@@ -33,7 +62,7 @@ impl EventHandler for Handler {
 			thread::spawn(move || {
 				stdin
 					.write(
-						&"#import \"@preview/catppuccin:1.0.0\": catppuccin, flavors\n#show: catppuccin.with(flavors.mocha)\n#set page(height: auto, width: auto, margin: 16pt)\n#set text(size: 20pt)\n\n"
+						&"#import \"@preview/catppuccin:1.0.0\": catppuccin, flavors\n#show: catppuccin.with(flavors.mocha)\n#set page(height: auto, width: auto, margin: 12pt)\n#set text(size: 32pt)\n\n"
 							.bytes()
 							.collect::<Vec<u8>>(),
 					)
@@ -49,15 +78,30 @@ impl EventHandler for Handler {
 					.send_files(
 						&ctx,
 						vec![CreateAttachment::bytes(output.stdout, "output.png")],
-						CreateMessage::new().content(format!("**{}**", message.author.name)),
+						CreateMessage::new()
+							.content(format!("**{}**", message.author.name))
+							.components(vec![CreateActionRow::Buttons(vec![
+								CreateButton::new("delete")
+									.label("Delete")
+									.emoji('🗑')
+									.style(ButtonStyle::Danger),
+							])]),
 					)
 					.await
 					.unwrap();
 			} else {
 				message
-					.reply(
+					.channel_id
+					.send_message(
 						&ctx,
-						format!("```hs\n{}\n```", String::from_utf8(output.stderr).unwrap()),
+						CreateMessage::new()
+							.content(format!("```hs\n{}\n```", String::from_utf8(output.stderr).unwrap()))
+							.components(vec![CreateActionRow::Buttons(vec![
+								CreateButton::new("delete")
+									.label("Delete")
+									.emoji('🗑')
+									.style(ButtonStyle::Danger),
+							])]),
 					)
 					.await
 					.unwrap();
