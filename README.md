@@ -19,10 +19,10 @@ Discord bot to compile typst to PNG.
 $ "equations" $
 ```
 
-### $ expr $
+### $expr$
 
 This case is auto detected in all messages.
 
 ```
-$ expr $
+$expr$
 ```
