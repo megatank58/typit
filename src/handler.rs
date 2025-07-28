@@ -11,7 +11,11 @@ pub struct Handler;
 #[serenity::async_trait]
 impl EventHandler for Handler {
 	async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-		let button_interacton = interaction.message_component().unwrap();
+		let button_interaction = interaction.message_component().unwrap();
+
+		if button_interaction.user.id != button_interaction.message.author.id {
+			return;
+		}
 
 		button_interacton.message.delete(&ctx).await.unwrap();
 	}
