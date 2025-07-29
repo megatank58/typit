@@ -17,7 +17,7 @@ impl EventHandler for Handler {
 			return;
 		}
 
-		button_interacton.message.delete(&ctx).await.unwrap();
+		button_interaction.message.delete(&ctx).await.unwrap();
 	}
 
 	async fn message(&self, ctx: Context, message: Message) {
