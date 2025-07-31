@@ -1,6 +1,6 @@
 use serenity::all::{
-	ButtonStyle, Context, CreateActionRow, CreateAttachment, CreateButton, CreateMessage, EventHandler, Interaction,
-	Message, Ready,
+	ActionRowComponent, ButtonKind, ButtonStyle, Context, CreateActionRow, CreateAttachment, CreateButton,
+	CreateMessage, EventHandler, Interaction, Message, Ready,
 };
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -12,8 +12,15 @@ pub struct Handler;
 impl EventHandler for Handler {
 	async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
 		let button_interaction = interaction.message_component().unwrap();
+		let ActionRowComponent::Button(btn) = &button_interaction.message.components[0].components[0] else {
+			unreachable!()
+		};
 
-		if button_interaction.user.id != button_interaction.message.author.id {
+		let ButtonKind::NonLink { custom_id, style: _ } = &btn.data else {
+			unreachable!()
+		};
+
+		if custom_id != &button_interaction.user.id.to_string() {
 			return;
 		}
 
@@ -86,6 +93,7 @@ impl EventHandler for Handler {
 							.content(format!("**{}**", message.author.name))
 							.components(vec![CreateActionRow::Buttons(vec![
 								CreateButton::new("delete")
+									.custom_id(message.author.id.to_string())
 									.label("Delete")
 									.emoji('🗑')
 									.style(ButtonStyle::Danger),
