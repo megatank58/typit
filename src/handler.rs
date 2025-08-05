@@ -68,6 +68,28 @@ impl EventHandler for Handler {
 				None => code,
 			};
 
+			if let Some(guild_id) = message.guild_id {
+				for mentioned in &message.mention_channels {
+					let mention = mentioned.id.to_string();
+
+					if let Some(guild) = &ctx.cache.as_ref().guild(guild_id) {
+						if let Some(channel) = guild.channels.get(&mentioned.id) {
+							code = code.replace(&mention, &format!("#{}", channel.name));
+							continue;
+						}
+					}
+				}
+
+				let channels = &guild_id.channels(&ctx).await.unwrap();
+
+				for (id, channel) in channels {
+					let mention = format!("<#{id}>");
+
+					code = code.replace(&mention, &format!("#{}", channel.name));
+					continue;
+				}
+			}
+
 			let mut stdin = cmd.stdin.take().expect("Failed to open stdin");
 
 			thread::spawn(move || {
