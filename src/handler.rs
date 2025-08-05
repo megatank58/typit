@@ -61,7 +61,7 @@ impl EventHandler for Handler {
 				.spawn()
 				.unwrap();
 
-			let mut code = message.content.clone();
+			let mut code = message.content_safe(&ctx);
 
 			code = match code.strip_prefix(",typ") {
 				Some(new_code) => new_code.to_string(),
