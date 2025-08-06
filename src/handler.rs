@@ -5,6 +5,7 @@ use serenity::all::{
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::thread;
+use std::time::Duration;
 
 pub struct Handler;
 
@@ -102,6 +103,44 @@ impl EventHandler for Handler {
 					.expect("Failed to write to stdin");
 				stdin.write_all(code.as_bytes()).expect("Failed to write to stdin");
 			});
+
+			let mut milliseconds = 0;
+
+			loop {
+				let recv = cmd.try_wait();
+
+				if recv.is_ok() && recv.unwrap().is_some() {
+					break;
+				}
+
+				if milliseconds == 3000 {
+					let recv = cmd.try_wait();
+					if recv.is_err() || (recv.is_ok() && recv.unwrap().is_none()) {
+						cmd.kill().unwrap();
+						message
+							.channel_id
+							.send_message(
+								&ctx,
+								CreateMessage::new()
+									.content("Expression took more than 3 seconds to render.")
+									.components(vec![CreateActionRow::Buttons(vec![
+										CreateButton::new("delete")
+											.label("Delete")
+											.emoji('🗑')
+											.style(ButtonStyle::Danger),
+									])]),
+							)
+							.await
+							.unwrap();
+						return;
+					}
+					break;
+				}
+
+				thread::sleep(Duration::from_millis(100));
+
+				milliseconds += 100;
+			}
 
 			let output = cmd.wait_with_output().unwrap();
 
