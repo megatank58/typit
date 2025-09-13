@@ -4,24 +4,22 @@ mod handler;
 
 use std::env;
 
-use anyhow::Result;
 use serenity::all::{ActivityData, Client, GatewayIntents};
 
 use crate::handler::Handler;
 
 #[tokio::main]
-async fn main() -> Result<()> {
-	dotenv::dotenv()?;
+async fn main() {
+	dotenv::dotenv().unwrap();
 
-	let token = env::var("TOKEN")?;
+	let token = env::var("TOKEN").unwrap();
 	let intents = GatewayIntents::from_bits_retain(33280);
 
 	let mut client = Client::builder(token, intents)
 		.activity(ActivityData::playing("around with typst"))
 		.event_handler(Handler)
-		.await?;
+		.await
+		.unwrap();
 
-	client.start().await?;
-
-	Ok(())
+	client.start().await.unwrap();
 }
