@@ -9,7 +9,7 @@ use std::time::Duration;
 
 const TIME_LIMIT: u64 = 5000;
 const TIME_STEP: u64 = 50;
-const PREAMBLE: &str = "#import \"@preview/catppuccin:1.0.0\": catppuccin, flavors\n#show: catppuccin.with(flavors.mocha)\n#set page(height: auto, width: auto, margin: 12pt)\n#set text(size: 32pt)\n\n";
+const PREAMBLE: &str = "#import \"@preview/catppuccin:1.0.0\": catppuccin, flavors\n#show: catppuccin.with(flavors.mocha)\n#set page(height: auto, width: 1200pt, margin: 28pt)\n#set text(size: 30pt)\n#show math.equation: set text(46pt)\n\n";
 
 fn is_math_block(contents: &str) -> bool {
 	let mut is_math_block = contents.starts_with(",typ");
