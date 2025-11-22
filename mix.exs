@@ -24,9 +24,8 @@ defmodule Typit.MixProject do
     [
       {:nosedrum, github: "jchristgit/nosedrum", override: true},
       {:nostrum, github: "Kraigie/nostrum", override: true},
-      {:dotenvy, "~> 1.0.0"}
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:dotenvy, "~> 1.0.0"},
+      {:rambo, "~> 0.3"}
     ]
   end
 end

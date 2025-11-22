@@ -25,6 +25,7 @@ defmodule Typit do
 
     children = [
       Nosedrum.TextCommand.Storage.ETS,
+      Nosedrum.Storage.Dispatcher,
       { Nostrum.Bot, bot_options }
     ]
 
