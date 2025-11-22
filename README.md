@@ -4,12 +4,12 @@ Discord bot to compile typst to PNG.
 
 ## Requirements
 
-* Message content intent is required for the bot to function.
+* Message content intent is required for the text command to function.
 * typst installed and avaliable in PATH.
 
 ## Usage
 
-### ,typ expr
+### ,typ expr (message command)
 
 ```
 ,typ
@@ -19,10 +19,19 @@ Discord bot to compile typst to PNG.
 $ "equations" $
 ```
 
-### $expr$
+### /typ expression: expr (slash command)
 
-This case is auto detected in all messages.
+Note: this runs in math mode.
 
 ```
-$expr$
+/typ expression: `F = m a`
+```
+
+### /typ (modal)
+
+Opens a modal to write 4000 characters of typst code.
+```
+/typ
+
+OPENS MODAL
 ```
