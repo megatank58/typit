@@ -2,12 +2,6 @@ defmodule Typit.TextCommand do
   @behaviour Nosedrum.TextCommand
   @moduledoc false
 
-  require Rambo
-  require Logger
-
-  @time_limit 5_000
-  @setup "#import \"@preview/catppuccin:1.0.0\": catppuccin, flavors;#show: catppuccin.with(flavors.mocha);#set page(height: auto, width: auto, margin: 28pt);#set text(size: 44pt);"
-  
   @impl true
   def usage, do: [",typ <text>"]
 
@@ -29,18 +23,19 @@ defmodule Typit.TextCommand do
   def command(message, _text) do
     contents = String.replace(message.content, ",typ", "")
 
-    task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{@setup}\n#{contents}", timeout: @time_limit) end)
+    task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n#{contents}", timeout: Typit.Constants.time_limit()) end)
 
     case Task.await(task) do
       {:ok, results} -> Nostrum.Api.Message.create(message.channel_id, content: "**#{message.author.username}**", file: %{name: "output.png", body: results.out})
       {:error, results} -> Nostrum.Api.Message.create(message.channel_id, content: "```hs\n#{results.err}```")
-      {:killed, _} -> Nostrum.Api.Message.create(message.channel_id, content: "Expression took more than #{@time_limit/1000} seconds to render.")
+      {:killed, _} -> Nostrum.Api.Message.create(message.channel_id, content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render.")
     end
   end
 end
 
 defmodule Typit.ApplicationCommand do
   @behaviour Nosedrum.ApplicationCommand
+  @moduledoc false
 
   @impl true
   def description() do
@@ -49,7 +44,48 @@ defmodule Typit.ApplicationCommand do
 
   @impl true
   def command(interaction) do
-    
+    if interaction.data.options != nil do
+      defer_response = %{
+        type: 5,
+      }
+  
+      Nostrum.Api.Interaction.create_response(interaction, defer_response)
+
+      contents = Enum.at(interaction.data.options, 0).value
+
+      task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n$ #{contents} $", timeout: Typit.Constants.time_limit()) end)
+
+      response = case Task.await(task) do
+        {:ok, results} -> %{content: "**#{interaction.user.username}**", file: %{name: "output.png", body: results.out}}
+        {:error, results} -> %{content: "```hs\n#{results.err}```"}
+        {:killed, _} -> %{content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render."}
+      end
+
+      Nostrum.Api.Interaction.edit_response(interaction, response)
+    else
+      response = %{
+        type: 9,
+        data: %{
+          custom_id: "typit_modal",
+          title: "Typit Image Generation",
+          components: [
+            %{
+               type: 1,
+                components: [%{
+                  type: 4,
+                  custom_id: "code",
+                  label: "Code",
+                  style: 2,
+                  placeholder: "Write your code here...",
+                  required: true
+              }]
+            }
+          ]
+        }
+      }
+
+     Nostrum.Api.Interaction.create_response(interaction, response)
+   end
   end
 
   @impl true
@@ -57,16 +93,40 @@ defmodule Typit.ApplicationCommand do
     :slash
   end
 
-  
   @impl true
   def options() do
     [
       %{
-        type: :attachment,
-        name: "file",
-        description: "The file for the bot to generate image.",
+        type: :string,
+        name: "expression",
+        description: "The expression for the bot to generate image in math mode.",
         required: false
       }
     ]
+  end
+end
+
+defmodule Typit.Modal do
+  @behaviour Nosedrum.ComponentInteraction
+  @moduledoc false
+  
+  def message_component_interaction(interaction, _) do
+    defer_response = %{
+      type: 5,
+    }
+  
+    Nostrum.Api.Interaction.create_response(interaction, defer_response)
+    
+    contents = Enum.at(Enum.at(interaction.data.components, 0).components,0).value
+
+    task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n#{contents}", timeout: Typit.Constants.time_limit()) end)
+
+    response = case Task.await(task) do
+      {:ok, results} -> %{content: "**#{interaction.user.username}**", file: %{name: "output.png", body: results.out}}
+      {:error, results} -> %{content: "```hs\n#{results.err}```"}
+      {:killed, _} -> %{content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render."}
+    end
+
+    Nostrum.Api.Interaction.edit_response(interaction, response)
   end
 end

@@ -2,30 +2,28 @@ defmodule Typit.Consumer do
   @behaviour Nostrum.Consumer
 
   require Logger
-  require Nosedrum.Storage.Dispatcher
-  require Nosedrum.TextCommand.Invoker.Split
-  require Nosedrum.TextCommand.Storage.ETS
-
-  alias Nosedrum.Storage.Dispatcher
-  alias Nosedrum.TextCommand.Invoker.Split
-  alias Nosedrum.TextCommand.Storage.ETS
+  require Nosedrum
 
   def handle_event({:READY, _, _}) do
-    Logger.info("Typit has started")
+    Logger.info("Typit started")
     
-    ETS.add_command(["typ"], Typit.TextCommand)
+    Nosedrum.TextCommand.Storage.ETS.add_command(["typ"], Typit.TextCommand)
+    Nosedrum.ComponentHandler.ETS.register_components(["typit_modal"], Typit.Modal, nil)
     case Nosedrum.Storage.Dispatcher.add_command("typ", Typit.ApplicationCommand, :global) do
-      {:ok, _} -> IO.puts("Registered command.")
-      e -> IO.inspect(e, label: "An error occurred registering the command")
+      {:ok, _} -> Logger.info("Registered command")
+      e -> Logger.error("An error occurred registering the command: #{e}")
     end
   end
 
-  def handle_event({:MESSAGE_CREATE, message, _}) do
-    Logger.info("Message received!")
-    Split.handle_message(message)
-  end
+  def handle_event({:MESSAGE_CREATE, message, _}) , do: Nosedrum.TextCommand.Invoker.Split.handle_message(message)
 
-  def handle_event({:INTERACTION_CREATE, intr, _}), do: Dispatcher.handle_interaction(intr)
+  def handle_event({:INTERACTION_CREATE, interaction, _}) do
+    case interaction.type do
+      1 -> Nostrum.Api.Interaction.create_response(interaction, %{type: 1})
+      2 -> Nosedrum.Storage.Dispatcher.handle_interaction(interaction)
+      x when x in 3..5 -> Nosedrum.ComponentHandler.ETS.handle_component_interaction(interaction)
+    end
+  end 
   
   def handle_event(_), do: :noop
 end
