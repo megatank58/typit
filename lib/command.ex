@@ -25,10 +25,13 @@ defmodule Typit.TextCommand do
 
     task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n#{contents}", timeout: Typit.Constants.time_limit()) end)
 
-    case Task.await(task) do
-      {:ok, results} -> Nostrum.Api.Message.create(message.channel_id, content: "**#{message.author.username}**", file: %{name: "output.png", body: results.out})
-      {:error, results} -> Nostrum.Api.Message.create(message.channel_id, content: "```hs\n#{results.err}```")
-      {:killed, _} -> Nostrum.Api.Message.create(message.channel_id, content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render.")
+    try do
+      case Task.await(task) do
+        {:ok, results} -> Nostrum.Api.Message.create(message.channel_id, content: "**#{message.author.username}**", file: %{name: "output.png", body: results.out})
+        {:error, results} -> Nostrum.Api.Message.create(message.channel_id, content: "```hs\n#{results.err}```")
+      end
+    catch
+      :exit, _ -> Nostrum.Api.Message.create(message.channel_id, content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render.")
     end
   end
 end
@@ -55,13 +58,16 @@ defmodule Typit.ApplicationCommand do
 
       task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n$ #{contents} $", timeout: Typit.Constants.time_limit()) end)
 
-      response = case Task.await(task) do
-        {:ok, results} -> %{content: "**#{interaction.user.username}**", file: %{name: "output.png", body: results.out}}
-        {:error, results} -> %{content: "```hs\n#{results.err}```"}
-        {:killed, _} -> %{content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render."}
-      end
+      try do
+        response = case Task.await(task) do
+          {:ok, results} -> %{content: "**#{interaction.user.username}**", file: %{name: "output.png", body: results.out}}
+          {:error, results} -> %{content: "```hs\n#{results.err}```"}
+        end
 
-      Nostrum.Api.Interaction.edit_response(interaction, response)
+        Nostrum.Api.Interaction.edit_response(interaction, response)
+      catch
+        :exit, _ -> Nostrum.Api.Interaction.edit_response(interaction,  %{content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render."})
+      end
     else
       response = %{
         type: 9,
@@ -121,12 +127,15 @@ defmodule Typit.Modal do
 
     task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n#{contents}", timeout: Typit.Constants.time_limit()) end)
 
-    response = case Task.await(task) do
-      {:ok, results} -> %{content: "**#{interaction.user.username}**", file: %{name: "output.png", body: results.out}}
-      {:error, results} -> %{content: "```hs\n#{results.err}```"}
-      {:killed, _} -> %{content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render."}
-    end
+    try do
+      response = case Task.await(task) do
+        {:ok, results} -> %{content: "**#{interaction.user.username}**", file: %{name: "output.png", body: results.out}}
+        {:error, results} -> %{content: "```hs\n#{results.err}```"}
+      end
 
-    Nostrum.Api.Interaction.edit_response(interaction, response)
+      Nostrum.Api.Interaction.edit_response(interaction, response)
+    catch
+      :exit, _ -> Nostrum.Api.Interaction.edit_response(interaction,  %{content: "Expression took more than #{Typit.Constants.time_limit()/1000} seconds to render."})
+    end
   end
 end
