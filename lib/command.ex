@@ -125,7 +125,7 @@ defmodule Typit.Modal do
     
     contents = Enum.at(Enum.at(interaction.data.components, 0).components,0).value
 
-    task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: "#{Typit.Constants.setup()}\n#{contents}", timeout: Typit.Constants.time_limit()) end)
+    task = Task.async(fn -> Rambo.run("typst", ["compile", "-", "-", "--format", "png"], in: contents, timeout: Typit.Constants.time_limit()) end)
 
     try do
       response = case Task.await(task) do
