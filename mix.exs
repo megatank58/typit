@@ -23,7 +23,7 @@ defmodule Typit.MixProject do
   defp deps do
     [
       {:nosedrum, github: "jchristgit/nosedrum", override: true},
-      {:nostrum, github: "Kraigie/nostrum", override: true},
+      {:nostrum, "~> 0.10.4"},
       {:dotenvy, "~> 1.0.0"},
       {:rambo, "~> 0.3"}
     ]

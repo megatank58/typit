@@ -1,0 +1,60 @@
+{
+  description = "Discord bot to compile typst to PNG.";
+
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+
+  outputs = { self, nixpkgs }: let
+    overlay = prev: final: rec {
+      beamPackages = prev.beamMinimal28Packages;
+      elixir = beamPackages.elixir_1_19;
+      erlang = beamPackages.erlang;
+      hex = beamPackages.hex;
+      final.mix2nix = prev.mix2nix.overrideAttrs {
+        nativeBuildInputs = [ final.elixir ];
+        buildInputs = [ final.erlang ];
+      };
+    };
+
+    forAllSystems = nixpkgs.lib.genAttrs [
+      "x86_64-linux"
+      "aarch64-linux"
+      "x86_64-darwin"
+      "aarch64-darwin"
+    ];
+
+    nixpkgsFor = system:
+      import nixpkgs {
+        inherit system;
+        overlays = [overlay];
+      };
+    in {
+    packages = forAllSystems(system: let
+      pkgs = nixpkgsFor system;
+      mixNixDeps = import ./deps.nix {
+        lib = pkgs.lib;
+        beamPackages = pkgs.beamPackages;
+      };
+      in rec {
+        default = pkgs.beamPackages.buildMix {
+            name = "typit";
+            src = ./.;
+            version = "0.1.0";
+            beamDeps = builtins.attrValues mixNixDeps;
+            buildInputs = [ pkgs.elixir ];
+	    buildPhase = ''
+              runHook preBuild
+              export HEX_HOME=".nix-hex";
+              export MIX_HOME=".nix-mix";
+              mix compile --no-deps-check
+              runHook postBuild
+	    '';
+          };
+      });
+
+    devShells = forAllSystems (system: let
+      pkgs = nixpkgsFor system;
+    in {
+      default = pkgs.callPackage ./shell.nix {};
+    });
+  };
+}
