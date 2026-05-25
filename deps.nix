@@ -203,6 +203,19 @@ let
       beamDeps = [];
     };
 
+    nostrum = buildMix rec {
+      name = "nostrum";
+      version = "0.10.4";
+
+      src = fetchHex {
+        pkg = "nostrum";
+        version = "${version}";
+        sha256 = "fcc2642bf5b09792865ec2c26c1a11c6aa5432bc623a65dd81141e1eab9f1b99";
+      };
+
+      beamDeps = [ castle certifi gun jason mime ];
+    };
+
     poly1305 = buildMix rec {
       name = "poly1305";
       version = "1.0.4";
