@@ -1,5 +1,5 @@
 {
-  description = "A port of typit to rust";
+  description = "Discord bot to compile typst to PNG.";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
