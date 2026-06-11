@@ -1,0 +1,10 @@
+[package]
+name = "typit"
+version = "0.1.0"
+edition = "2024"
+default-run = "typit"
+
+[dependencies]
+anyhow = "1.0.102"
+serenity = "0.12"
+tokio = { version = "1.49", features = ["full"] }

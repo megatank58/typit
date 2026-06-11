@@ -1,60 +1,144 @@
 {
   description = "Discord bot to compile typst to PNG.";
 
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
-
-  outputs = { self, nixpkgs }: let
-    overlay = prev: final: rec {
-      beamPackages = prev.beamMinimal28Packages;
-      elixir = beamPackages.elixir_1_19;
-      erlang = beamPackages.erlang;
-      hex = beamPackages.hex;
-      final.mix2nix = prev.mix2nix.overrideAttrs {
-        nativeBuildInputs = [ final.elixir ];
-        buildInputs = [ final.erlang ];
-      };
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    hooks = {
+      url = "github:cachix/git-hooks.nix";
+      inputs.nixpkgs.follows = "nixpkgs";
     };
-
-    forAllSystems = nixpkgs.lib.genAttrs [
-      "x86_64-linux"
-      "aarch64-linux"
-      "x86_64-darwin"
-      "aarch64-darwin"
-    ];
-
-    nixpkgsFor = system:
-      import nixpkgs {
-        inherit system;
-        overlays = [overlay];
-      };
-    in {
-    packages = forAllSystems(system: let
-      pkgs = nixpkgsFor system;
-      mixNixDeps = import ./deps.nix {
-        lib = pkgs.lib;
-        beamPackages = pkgs.beamPackages;
-      };
-      in rec {
-        default = pkgs.beamPackages.buildMix {
-            name = "typit";
-            src = ./.;
-            version = "0.1.0";
-            beamDeps = builtins.attrValues mixNixDeps;
-            buildInputs = [ pkgs.elixir ];
-	    buildPhase = ''
-              runHook preBuild
-              export HEX_HOME=".nix-hex";
-              export MIX_HOME=".nix-mix";
-              mix compile --no-deps-check
-              runHook postBuild
-	    '';
-          };
-      });
-
-    devShells = forAllSystems (system: let
-      pkgs = nixpkgsFor system;
-    in {
-      default = pkgs.callPackage ./shell.nix {};
-    });
+    fenix = {
+      url = "github:nix-community/fenix";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
+
+  outputs =
+    {
+      self,
+      hooks,
+      fenix,
+      nixpkgs,
+      ...
+    }:
+    let
+      inherit (nixpkgs) lib;
+      systems = [
+        "aarch64-linux"
+        "aarch64-darwin"
+        "x86_64-linux"
+      ];
+      forAllSystems =
+        f:
+        lib.genAttrs systems (
+          system:
+          f rec {
+            pkgs = import nixpkgs {
+              inherit system;
+              overlays = [ self.overlays.default ];
+            };
+            inherit system;
+            check = self.checks.${system}.pre-commit-check;
+
+            buildInputs = [ ];
+            nativeBuildInputs = [ pkgs.makeWrapper ];
+          }
+        );
+    in
+    {
+      overlays.default = final: prev: {
+        rustToolchain =
+          with fenix.packages.${prev.stdenv.hostPlatform.system};
+          combine (
+            (with stable; [
+              clippy
+              rustc
+              cargo
+              rust-src
+              rust-analyzer
+            ])
+            ++ [ default.rustfmt ]
+          );
+      };
+
+      checks = forAllSystems (
+        {
+          system,
+          ...
+        }:
+        {
+          pre-commit-check = hooks.lib.${system}.run {
+            src = ./.;
+            hooks = {
+              clippy = {
+                enable = true;
+                package = fenix.packages.${system}.stable.clippy;
+              };
+              rustfmt = {
+                enable = true;
+                package = fenix.packages.${system}.default.rustfmt;
+              };
+            };
+          };
+        }
+      );
+
+      packages = forAllSystems (
+        {
+          pkgs,
+          buildInputs,
+          nativeBuildInputs,
+          ...
+        }:
+        {
+          default =
+            (pkgs.makeRustPlatform {
+              cargo = pkgs.rustToolchain;
+              rustc = pkgs.rustToolchain;
+            }).buildRustPackage
+              {
+                inherit buildInputs nativeBuildInputs;
+
+                pname = "typit";
+                version = "0.1.0";
+                src = ./.;
+                meta.mainProgram = "typit";
+                cargoLock.lockFile = ./Cargo.lock;
+
+                postInstall = ''
+                  wrapProgram $out/bin/typit \
+                    --prefix PATH : ${pkgs.lib.makeBinPath [ pkgs.typst ]}
+                '';
+              };
+        }
+      );
+
+      devShells = forAllSystems (
+        {
+          pkgs,
+          check,
+          buildInputs,
+          nativeBuildInputs,
+          ...
+        }:
+        {
+          default = pkgs.mkShell {
+            inherit (check) shellHook;
+
+            packages =
+              check.enabledPackages
+              ++ (with pkgs; [
+                rustToolchain
+                typst
+              ])
+              ++ buildInputs
+              ++ nativeBuildInputs;
+
+            env = {
+              RUST_SRC_PATH = "${pkgs.rustToolchain}/lib/rustlib/src/rust/library";
+            };
+          };
+        }
+      );
+    };
 }
