@@ -1,9 +1,9 @@
 use anyhow::Result;
 use serenity::all::{
-    ActionRowComponent, CommandInteraction, Context, CreateActionRow, CreateAllowedMentions,
-    CreateAttachment, CreateInputText, CreateInteractionResponse, CreateInteractionResponseMessage,
-    CreateMessage, CreateModal, EditAttachments, EditInteractionResponse, InputTextStyle, Message,
-    ModalInteraction,
+    ActionRowComponent, ButtonStyle, CommandInteraction, Context, CreateActionRow,
+    CreateAllowedMentions, CreateAttachment, CreateButton, CreateInputText,
+    CreateInteractionResponse, CreateInteractionResponseMessage, CreateMessage, CreateModal,
+    EditAttachments, EditInteractionResponse, InputTextStyle, Message, ModalInteraction,
 };
 use std::{process::Stdio, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt as _};
@@ -89,10 +89,17 @@ pub async fn typ_message(ctx: &Context, content: &str, msg: &Message) -> Result<
     }
 
     let content = run_typst(&content).await?;
+
+    let delete_button = CreateButton::new(u64::from(msg.author.id).to_string())
+        .label("Delete")
+        .style(ButtonStyle::Danger);
+    let row = CreateActionRow::Buttons(vec![delete_button]);
+
     let resp = CreateMessage::new()
         .content(content.text)
         .reference_message(msg)
         .files(content.attachment)
+        .components(vec![row])
         .allowed_mentions(CreateAllowedMentions::new().empty_users());
 
     msg.channel_id.send_message(&ctx, resp).await?;
@@ -127,9 +134,15 @@ pub async fn typ_interaction(ctx: &Context, cmd: &CommandInteraction) -> Result<
             attachments = attachments.add(atch);
         }
 
+        let delete_button = CreateButton::new(u64::from(cmd.user.id).to_string())
+            .label("Delete")
+            .style(ButtonStyle::Danger);
+        let row = CreateActionRow::Buttons(vec![delete_button]);
+
         let msg = EditInteractionResponse::new()
             .content(content.text)
-            .attachments(attachments);
+            .attachments(attachments)
+            .components(vec![row]);
 
         cmd.edit_response(&ctx, msg).await?;
     }
@@ -158,8 +171,14 @@ pub async fn typ_modal(ctx: &Context, modal: &ModalInteraction) -> Result<()> {
         attachments = attachments.add(atch);
     }
 
+    let delete_button = CreateButton::new(u64::from(modal.user.id).to_string())
+        .label("Delete")
+        .style(ButtonStyle::Danger);
+    let row = CreateActionRow::Buttons(vec![delete_button]);
+
     let msg = EditInteractionResponse::new()
         .content(content.text)
+        .components(vec![row])
         .attachments(attachments);
 
     modal.edit_response(&ctx, msg).await?;

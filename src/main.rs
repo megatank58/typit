@@ -1,6 +1,8 @@
 use std::env;
 
-use serenity::all::{CreateInteractionResponse, CreateInteractionResponseMessage, Interaction};
+use serenity::all::{
+    CreateInteractionResponse, CreateInteractionResponseMessage, Interaction, UserId,
+};
 use serenity::async_trait;
 use serenity::model::channel::Message;
 use serenity::model::gateway::Ready;
@@ -50,6 +52,23 @@ impl EventHandler for Handler {
                         .await
                         .unwrap();
                 }
+            }
+            Interaction::Component(component) => {
+                let uid = UserId::new(component.data.custom_id.parse().unwrap());
+                if component.user.id != uid {
+                    component
+                        .create_response(
+                            &ctx,
+                            CreateInteractionResponse::Message(
+                                CreateInteractionResponseMessage::new()
+                                    .content("You can only delete messages you're responsible for"),
+                            ),
+                        )
+                        .await
+                        .unwrap();
+                }
+
+                component.message.delete(&ctx).await.unwrap();
             }
             _ => todo!(),
         }
