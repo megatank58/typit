@@ -1,16 +1,17 @@
+use std::process::Stdio;
+use std::time::Duration;
+
 use anyhow::Result;
 use serenity::all::{
-    ActionRowComponent, ButtonStyle, CommandInteraction, Context, CreateActionRow,
-    CreateAllowedMentions, CreateAttachment, CreateButton, CreateInputText,
-    CreateInteractionResponse, CreateInteractionResponseMessage, CreateMessage, CreateModal,
-    EditAttachments, EditInteractionResponse, InputTextStyle, Message, ModalInteraction,
+	ActionRowComponent, ButtonStyle, CommandInteraction, Context, CreateActionRow, CreateAllowedMentions,
+	CreateAttachment, CreateButton, CreateInputText, CreateInteractionResponse, CreateInteractionResponseMessage,
+	CreateMessage, CreateModal, EditAttachments, EditInteractionResponse, InputTextStyle, Message, ModalInteraction,
 };
-use std::{process::Stdio, time::Duration};
 use tokio::io::{AsyncReadExt, AsyncWriteExt as _};
 
 struct Content {
-    text: String,
-    attachment: Option<CreateAttachment>,
+	text: String,
+	attachment: Option<CreateAttachment>,
 }
 
 const PREAMBLE: &str = r#"
@@ -21,167 +22,160 @@ const PREAMBLE: &str = r#"
 "#;
 
 async fn run_typst(content: &str) -> Result<Content> {
-    let mut child = tokio::process::Command::new("typst")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .args(["compile", "-", "-", "--format", "png"])
-        .spawn()?;
+	let mut child = tokio::process::Command::new("typst")
+		.stdin(Stdio::piped())
+		.stdout(Stdio::piped())
+		.stderr(Stdio::piped())
+		.args(["compile", "-", "-", "--format", "png"])
+		.spawn()?;
 
-    let mut stdin = child.stdin.take().unwrap();
-    stdin
-        .write_all(format!("{PREAMBLE}\n{content}").as_bytes())
-        .await?;
-    drop(stdin);
+	let mut stdin = child.stdin.take().unwrap();
+	stdin.write_all(format!("{PREAMBLE}\n{content}").as_bytes()).await?;
+	drop(stdin);
 
-    let mut buf = vec![];
+	let mut buf = vec![];
 
-    let mut stdout = child.stdout.take().unwrap();
-    if tokio::time::timeout(Duration::from_secs(25), stdout.read_to_end(&mut buf))
-        .await
-        .is_err()
-    {
-        return Ok(Content {
-            text: "Your code took too long (>25s) to run".to_owned(),
-            attachment: None,
-        });
-    };
+	let mut stdout = child.stdout.take().unwrap();
+	if tokio::time::timeout(Duration::from_secs(25), stdout.read_to_end(&mut buf))
+		.await
+		.is_err()
+	{
+		return Ok(Content {
+			text: "Your code took too long (>25s) to run".to_owned(),
+			attachment: None,
+		});
+	};
 
-    let mut stderr = child.stderr.take().unwrap();
-    stderr.read_to_end(&mut buf).await?;
+	let mut stderr = child.stderr.take().unwrap();
+	stderr.read_to_end(&mut buf).await?;
 
-    let stat = child.wait().await?;
+	let stat = child.wait().await?;
 
-    if stat.success() {
-        let attachment = CreateAttachment::bytes(buf, "typst.png");
+	if stat.success() {
+		let attachment = CreateAttachment::bytes(buf, "typst.png");
 
-        Ok(Content {
-            text: String::new(),
-            attachment: Some(attachment),
-        })
-    } else {
-        let err = String::from_utf8_lossy(&buf).into_owned();
+		Ok(Content {
+			text: String::new(),
+			attachment: Some(attachment),
+		})
+	} else {
+		let err = String::from_utf8_lossy(&buf).into_owned();
 
-        Ok(Content {
-            text: format!("```typ\n{err}\n```"),
-            attachment: None,
-        })
-    }
+		Ok(Content {
+			text: format!("```typ\n{err}\n```"),
+			attachment: None,
+		})
+	}
 }
 
 pub async fn typ_message(ctx: &Context, content: &str, msg: &Message) -> Result<()> {
-    let mut content = content.trim().to_owned();
+	let mut content = content.trim().to_owned();
 
-    if content.is_empty() {
-        msg.reply_ping(
-            &ctx,
-            "You must provide code to typeset. Usage: `,typ [code]`",
-        )
-        .await?;
-    }
+	if content.is_empty() {
+		msg.reply_ping(&ctx, "You must provide code to typeset. Usage: `,typ [code]`")
+			.await?;
+	}
 
-    if content.starts_with("```") {
-        let mut lines = content.lines();
-        let _ = lines.next();
-        let _ = lines.next_back();
+	if content.starts_with("```") {
+		let mut lines = content.lines();
+		let _ = lines.next();
+		let _ = lines.next_back();
 
-        content = lines.collect::<String>();
-    }
+		content = lines.collect::<String>();
+	}
 
-    let content = run_typst(&content).await?;
+	let content = run_typst(&content).await?;
 
-    let delete_button = CreateButton::new(u64::from(msg.author.id).to_string())
-        .label("Delete")
-        .style(ButtonStyle::Danger);
-    let row = CreateActionRow::Buttons(vec![delete_button]);
+	let delete_button = CreateButton::new(u64::from(msg.author.id).to_string())
+		.label("Delete")
+		.style(ButtonStyle::Danger);
+	let row = CreateActionRow::Buttons(vec![delete_button]);
 
-    let resp = CreateMessage::new()
-        .content(content.text)
-        .reference_message(msg)
-        .files(content.attachment)
-        .components(vec![row])
-        .allowed_mentions(CreateAllowedMentions::new().empty_users());
+	let resp = CreateMessage::new()
+		.content(content.text)
+		.reference_message(msg)
+		.files(content.attachment)
+		.components(vec![row])
+		.allowed_mentions(CreateAllowedMentions::new().empty_users());
 
-    msg.channel_id.send_message(&ctx, resp).await?;
+	msg.channel_id.send_message(&ctx, resp).await?;
 
-    Ok(())
+	Ok(())
 }
 
 pub async fn typ_interaction(ctx: &Context, cmd: &CommandInteraction) -> Result<()> {
-    if cmd.data.options.is_empty() {
-        let txt_inp = CreateInputText::new(InputTextStyle::Paragraph, "code", "typst_doc_body")
-            .placeholder("$ 1 + 2 = 3 $")
-            .required(true);
-        let action_row = CreateActionRow::InputText(txt_inp);
-        let modal =
-            CreateModal::new("typst_modal_id", "Input your code").components(vec![action_row]);
+	if cmd.data.options.is_empty() {
+		let txt_inp = CreateInputText::new(InputTextStyle::Paragraph, "code", "typst_doc_body")
+			.placeholder("$ 1 + 2 = 3 $")
+			.required(true);
+		let action_row = CreateActionRow::InputText(txt_inp);
+		let modal = CreateModal::new("typst_modal_id", "Input your code").components(vec![action_row]);
 
-        let resp = CreateInteractionResponse::Modal(modal);
-        cmd.create_response(&ctx, resp).await?;
-    } else {
-        let code = cmd.data.options[0].value.as_str().unwrap();
-        cmd.create_response(
-            &ctx,
-            CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new()),
-        )
-        .await?;
+		let resp = CreateInteractionResponse::Modal(modal);
+		cmd.create_response(&ctx, resp).await?;
+	} else {
+		let code = cmd.data.options[0].value.as_str().unwrap();
+		cmd.create_response(
+			&ctx,
+			CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new()),
+		)
+		.await?;
 
-        let content = run_typst(code).await?;
+		let content = run_typst(code).await?;
 
-        let mut attachments = EditAttachments::new();
+		let mut attachments = EditAttachments::new();
 
-        if let Some(atch) = content.attachment {
-            attachments = attachments.add(atch);
-        }
+		if let Some(atch) = content.attachment {
+			attachments = attachments.add(atch);
+		}
 
-        let delete_button = CreateButton::new(u64::from(cmd.user.id).to_string())
-            .label("Delete")
-            .style(ButtonStyle::Danger);
-        let row = CreateActionRow::Buttons(vec![delete_button]);
+		let delete_button = CreateButton::new(u64::from(cmd.user.id).to_string())
+			.label("Delete")
+			.style(ButtonStyle::Danger);
+		let row = CreateActionRow::Buttons(vec![delete_button]);
 
-        let msg = EditInteractionResponse::new()
-            .content(content.text)
-            .attachments(attachments)
-            .components(vec![row]);
+		let msg = EditInteractionResponse::new()
+			.content(content.text)
+			.attachments(attachments)
+			.components(vec![row]);
 
-        cmd.edit_response(&ctx, msg).await?;
-    }
+		cmd.edit_response(&ctx, msg).await?;
+	}
 
-    Ok(())
+	Ok(())
 }
 
 pub async fn typ_modal(ctx: &Context, modal: &ModalInteraction) -> Result<()> {
-    let ActionRowComponent::InputText(in_text) = modal.data.components[0].components[0].clone()
-    else {
-        unreachable!();
-    };
+	let ActionRowComponent::InputText(in_text) = modal.data.components[0].components[0].clone() else {
+		unreachable!();
+	};
 
-    let code = in_text.value.unwrap();
-    modal
-        .create_response(
-            &ctx,
-            CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new()),
-        )
-        .await?;
-    let content = run_typst(&code).await.unwrap();
+	let code = in_text.value.unwrap();
+	modal
+		.create_response(
+			&ctx,
+			CreateInteractionResponse::Defer(CreateInteractionResponseMessage::new()),
+		)
+		.await?;
+	let content = run_typst(&code).await.unwrap();
 
-    let mut attachments = EditAttachments::new();
+	let mut attachments = EditAttachments::new();
 
-    if let Some(atch) = content.attachment {
-        attachments = attachments.add(atch);
-    }
+	if let Some(atch) = content.attachment {
+		attachments = attachments.add(atch);
+	}
 
-    let delete_button = CreateButton::new(u64::from(modal.user.id).to_string())
-        .label("Delete")
-        .style(ButtonStyle::Danger);
-    let row = CreateActionRow::Buttons(vec![delete_button]);
+	let delete_button = CreateButton::new(u64::from(modal.user.id).to_string())
+		.label("Delete")
+		.style(ButtonStyle::Danger);
+	let row = CreateActionRow::Buttons(vec![delete_button]);
 
-    let msg = EditInteractionResponse::new()
-        .content(content.text)
-        .components(vec![row])
-        .attachments(attachments);
+	let msg = EditInteractionResponse::new()
+		.content(content.text)
+		.components(vec![row])
+		.attachments(attachments);
 
-    modal.edit_response(&ctx, msg).await?;
+	modal.edit_response(&ctx, msg).await?;
 
-    Ok(())
+	Ok(())
 }
